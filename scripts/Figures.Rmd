@@ -2,8 +2,7 @@
 title: |
   <center> Metabolic Diversity in Human Non-Small Cell Lung Cancer Cells </center>
   <center> scripts and results </center>
-# output: html_document
-output: pdf_document
+output: html_document
 author:
 - name: Ling Cai
   affiliation: UT Southwestern Medical Center
@@ -364,7 +363,39 @@ marrangeGrob(list(ggplot(dat[,c('CitG6m0','CitQ6m5')],mapping = aes(x=CitG6m0,y=
 ```
 
 #### 2F
-```{r 2F, warning = FALSE,message=FALSE,fig.height = 10,fig.width=5}
+```{r 2F, warning = FALSE,message=FALSE,fig.height = 4,fig.width=6}
+metabolite<-sapply(colnames(dat),FUN = function(x) unlist(strsplit(x,split = "m[0-9]"))[1])
+select<-names(table(metabolite))[table(metabolite)>1]
+dat.sub<-dat[,metabolite%in%select]
+metabolite.sub<-sapply(colnames(dat.sub),FUN = function(x) unlist(strsplit(x,split = "m[0-9]"))[1])
+G6<-grep('G6',unique(metabolite.sub),value = T)
+Q6<-grep('Q6',unique(metabolite.sub),value = T)
+G24<-grep('G24',unique(metabolite.sub),value = T)
+Q24<-grep('Q24',unique(metabolite.sub),value = T)
+nutrient.contribution<-lapply(list(G6,Q6,G24,Q24),FUN=function(c){
+  setNames(as.data.frame(do.call(cbind,lapply(c,FUN=function(x){
+    apply(dat.sub[,metabolite.sub==x],1,FUN=function(y){
+      sum((0:(length(y)-1))*(y/100))/(length(y)-1)
+    })
+  }))),nm = c)
+})
+names(nutrient.contribution)<-c('G6','Q6','G24','Q24')
+tmp6<-setNames(data.frame(melt(nutrient.contribution$G6[,gsub('Q','G',colnames(nutrient.contribution$Q6))]),melt(nutrient.contribution$Q6)[,2]),
+               nm = c('experiment','[U-13C]glucose','[U-13C]glutamine'))
+tmp24<-setNames(data.frame(melt(nutrient.contribution$G24[,gsub('Q','G',colnames(nutrient.contribution$Q24))]),melt(nutrient.contribution$Q24)[,2]),
+                nm = c('experiment','[U-13C]glucose','[U-13C]glutamine'))
+tmp<-data.frame(time=rep(c('6h','24h'),c(nrow(tmp6),nrow(tmp24))),rbind(tmp6,tmp24),check.names = F)
+tmp$experiment<-gsub('G',' ',tmp$experiment)
+tmp$experiment<-gsub("$","h",tmp$experiment)
+tmp$experiment<-factor(tmp$experiment)
+tmp$experiment<-factor(tmp$experiment,levels=levels(tmp$experiment)[c(2,4,8,6,1,3,7,5)])
+
+tmp$sum<-tmp$`[U-13C]glucose`+tmp$`[U-13C]glutamine`
+ggplot(tmp,aes(x=sum))+geom_density()+facet_wrap(~experiment,nrow = 2)+theme_bw()+xlab("sum of glucose and glutamine fractional carbon contribution")
+```
+
+#### 2G
+```{r 2G, warning = FALSE,message=FALSE,fig.height = 10,fig.width=5}
 h<-hclust(as.dist(1-abs(rcorr(as.matrix(dat),type = 'pearson')$r)),method = 'ward.D2')
 fviz_dend(h, k = 23, k_colors = "jco",main = 'Clustering Metabolic Features',
           type = "phylogenic", repel = TRUE)
@@ -682,8 +713,8 @@ heatmap3(ge.emt,
          dist=dist,method = 'ward.D2',labCol = NA,labRow = NA)
 ```
 
-#### 5H-preparation and model fitting
-```{r 5H-preparation, warning = FALSE,message=FALSE}
+#### 5I-preparation and model fitting
+```{r 5I-preparation, warning = FALSE,message=FALSE}
 tmp<-tmp.5C
 colnames(tmp)[6]<-'AUC'
 emt.pca<-prcomp(ge.emt)
@@ -694,21 +725,21 @@ fit<-lm(AUC~.,tmp)
 step<-stepAIC(fit, direction="both")
 ```
 
-#### 5H-stepwise feature selection result
-```{r 5H-stepwise, warning = FALSE,message=T}
+#### 5I-stepwise feature selection result
+```{r 5I-stepwise, warning = FALSE,message=T}
 step$anova
 ```
 
-#### 5H-table
-```{r 5H-table, warning = FALSE,message=FALSE}
+#### 5I-table
+```{r 5I-table, warning = FALSE,message=FALSE}
 fit1<-lm(AUC~`CitG6m0`+`EGFR-pY1173`+`E-cadherin`,data = tmp)
 fit2<-lm(AUC~`CitG6m0`+`EMT-Signature`+`EGFR-pY1173`+`E-cadherin`,data=tmp)
 tab_model(fit1,fit2,
           dv.labels = c('Model 1 (AIC selected)','Model 2 (added EMT-Signature)'))
 ```
 
-#### 5I
-```{r 5I, warning = FALSE,message=FALSE,fig.height = 3,fig.width=3}
+#### 5J
+```{r 5J, warning = FALSE,message=FALSE,fig.height = 3,fig.width=3}
 yy<-data.frame(x=fit1$fitted.values,y=tmp$AUC)
 ggplot(yy,aes(x=x,y=y))+geom_point(colour='navy',alpha=0.4,size=3)+
   geom_smooth(method='lm',se=F,colour=scales::alpha('black',0.3))+
@@ -831,7 +862,24 @@ grid.newpage();grid.draw(legend)
 
 ### Fig S1
 #### S1A
-```{r S1A, warning = FALSE,message=FALSE,fig.height = 4,fig.width=4}
+```{r S1A, warning = FALSE,message=FALSE,fig.height = 8,fig.width=3}
+doubling.time=(48/log2(dat$`Day3/Day1`)+96/log2(dat$`Day5/Day1`))/2
+nutrients<-dat[,c('Lac','Glc','Lac/Glc','Glu','Gln','Glu/Gln')]
+nutrients.norm<-nutrients
+nutrients.norm[]<-apply(nutrients,2,FUN=function(x) x/((2^(7/doubling.time)+1)/2))
+nutrients.norm$`Glu/Gln`<-nutrients.norm$Glu/nutrients.norm$Gln
+nutrients.norm$`Lac/Glc`<-nutrients.norm$Lac/nutrients.norm$Glc
+tmp<-data.frame(melt(nutrients[,c(1,2,4,5)]),corrected=melt(nutrients.norm[,c(1,2,4,5)])[,2])
+colnames(tmp)[1:2]<-c('feature','uncorrected')
+tmp$cor<-rep(unlist(lapply(names(nutrients)[c(1,2,4,5)],FUN=function(x) round(cor.test(nutrients[,x],nutrients.norm[,x])$estimate,3))),each=nrow(nutrients))
+tmp$feature_name=factor(paste(tmp$feature,tmp$cor,sep="\nr = "),ordered = F)
+tmp$feature_name=factor(tmp$feature_name,levels(tmp$feature_name)[c(1,4,2,3)])
+ggplot(tmp,aes(x=uncorrected,y=corrected))+geom_point(alpha=0.3)+theme_classic()+facet_wrap(~feature_name,scale='free',ncol = 1)+
+  xlab('normalized to final protein content')+ylab('normalized to estimated average protein content in 7h growth')
+```
+
+#### S1B
+```{r S1B, warning = FALSE,message=FALSE,fig.height = 4,fig.width=4}
 replicate.sd<-list()
 cell.sd<-list()
 new.names<-c('CitG6','CitG24','CitQ6','CitQ24','SerG6','SerG24',
@@ -865,9 +913,9 @@ ggplot(tmp,aes(x=btw.cell.sd,y=btw.rep.sd.mean,colour=metabolite,shape=tracer,al
   theme_classic()+ylim(0,22)+xlim(0,22)
 ```
 
-#### S1B was made by Pei-Hsuan Chen
-#### S1C
-```{r S1C, warning = FALSE,message=FALSE,fig.height = 3,fig.width=9}
+#### S1C was made by Pei-Hsuan Chen
+#### S1D
+```{r S1D, warning = FALSE,message=FALSE,fig.height = 3,fig.width=9}
 diversity.plot<-function(sheet,cell_lines,tracer){
   tmp<-read.xlsx(wb, sheet = sheet,rowNames = T,colNames = T,startRow = 2)
   tmp$Cell.line<-toupper(tmp$Cell.line)
@@ -898,8 +946,8 @@ diversity.plot<-function(sheet,cell_lines,tracer){
 diversity.plot(sheet='CitG6',cell_lines = c('HCC44','H1869','H1395'),tracer='glucose')
 ```
 
-#### S1D
-```{r S1D, warning = FALSE,message=FALSE,fig.height = 3,fig.width=9}
+#### S1E
+```{r S1E, warning = FALSE,message=FALSE,fig.height = 3,fig.width=9}
 diversity.plot(sheet='CitQ6',cell_lines = c('H1975','H441','H1395'),tracer='glutamine')
 ```
 
