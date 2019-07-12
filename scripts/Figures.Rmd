@@ -1,9 +1,9 @@
+
 ---
 title: |
   <center> Metabolic Diversity in Human Non-Small Cell Lung Cancer Cells </center>
   <center> scripts and results </center>
-# output: html_document
-output: pdf_document
+output: html_document
 author:
 - name: Ling Cai
   affiliation: UT Southwestern Medical Center
@@ -17,7 +17,7 @@ h1.title {
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-# Sys.setenv(RSTUDIO_PANDOC="/cm/shared/apps/pandoc/2.7/bin")
+# Sys.setenv(RSTUDIO_PANDOC="/cm/shared/apps/rstudio-web/1.2.1335/bin/pandoc")
 ```
 
 ##  {.tabset .tabset-fade .tabset-pills}
@@ -364,7 +364,39 @@ marrangeGrob(list(ggplot(dat[,c('CitG6m0','CitQ6m5')],mapping = aes(x=CitG6m0,y=
 ```
 
 #### 2F
-```{r 2F, warning = FALSE,message=FALSE,fig.height = 10,fig.width=5}
+```{r 2F, warning = FALSE,message=FALSE,fig.height = 4,fig.width=6}
+metabolite<-sapply(colnames(dat),FUN = function(x) unlist(strsplit(x,split = "m[0-9]"))[1])
+select<-names(table(metabolite))[table(metabolite)>1]
+dat.sub<-dat[,metabolite%in%select]
+metabolite.sub<-sapply(colnames(dat.sub),FUN = function(x) unlist(strsplit(x,split = "m[0-9]"))[1])
+G6<-grep('G6',unique(metabolite.sub),value = T)
+Q6<-grep('Q6',unique(metabolite.sub),value = T)
+G24<-grep('G24',unique(metabolite.sub),value = T)
+Q24<-grep('Q24',unique(metabolite.sub),value = T)
+nutrient.contribution<-lapply(list(G6,Q6,G24,Q24),FUN=function(c){
+  setNames(as.data.frame(do.call(cbind,lapply(c,FUN=function(x){
+    apply(dat.sub[,metabolite.sub==x],1,FUN=function(y){
+      sum((0:(length(y)-1))*(y/100))/(length(y)-1)
+    })
+  }))),nm = c)
+})
+names(nutrient.contribution)<-c('G6','Q6','G24','Q24')
+tmp6<-setNames(data.frame(melt(nutrient.contribution$G6[,gsub('Q','G',colnames(nutrient.contribution$Q6))]),melt(nutrient.contribution$Q6)[,2]),
+               nm = c('experiment','[U-13C]glucose','[U-13C]glutamine'))
+tmp24<-setNames(data.frame(melt(nutrient.contribution$G24[,gsub('Q','G',colnames(nutrient.contribution$Q24))]),melt(nutrient.contribution$Q24)[,2]),
+                nm = c('experiment','[U-13C]glucose','[U-13C]glutamine'))
+tmp<-data.frame(time=rep(c('6h','24h'),c(nrow(tmp6),nrow(tmp24))),rbind(tmp6,tmp24),check.names = F)
+tmp$experiment<-gsub('G',' ',tmp$experiment)
+tmp$experiment<-gsub("$","h",tmp$experiment)
+tmp$experiment<-factor(tmp$experiment)
+tmp$experiment<-factor(tmp$experiment,levels=levels(tmp$experiment)[c(2,4,8,6,1,3,7,5)])
+
+tmp$sum<-tmp$`[U-13C]glucose`+tmp$`[U-13C]glutamine`
+ggplot(tmp,aes(x=sum))+geom_density()+facet_wrap(~experiment,nrow = 2)+theme_bw()+xlab("sum of glucose and glutamine fractional carbon contribution")
+```
+
+#### 2G
+```{r 2G, warning = FALSE,message=FALSE,fig.height = 10,fig.width=5}
 h<-hclust(as.dist(1-abs(rcorr(as.matrix(dat),type = 'pearson')$r)),method = 'ward.D2')
 fviz_dend(h, k = 23, k_colors = "jco",main = 'Clustering Metabolic Features',
           type = "phylogenic", repel = TRUE)
@@ -682,8 +714,8 @@ heatmap3(ge.emt,
          dist=dist,method = 'ward.D2',labCol = NA,labRow = NA)
 ```
 
-#### 5H-preparation and model fitting
-```{r 5H-preparation, warning = FALSE,message=FALSE}
+#### 5I-preparation and model fitting
+```{r 5I-preparation, warning = FALSE,message=FALSE}
 tmp<-tmp.5C
 colnames(tmp)[6]<-'AUC'
 emt.pca<-prcomp(ge.emt)
@@ -694,21 +726,21 @@ fit<-lm(AUC~.,tmp)
 step<-stepAIC(fit, direction="both")
 ```
 
-#### 5H-stepwise feature selection result
-```{r 5H-stepwise, warning = FALSE,message=T}
+#### 5I-stepwise feature selection result
+```{r 5I-stepwise, warning = FALSE,message=T}
 step$anova
 ```
 
-#### 5H-table
-```{r 5H-table, warning = FALSE,message=FALSE}
+#### 5I-table
+```{r 5I-table, warning = FALSE,message=FALSE}
 fit1<-lm(AUC~`CitG6m0`+`EGFR-pY1173`+`E-cadherin`,data = tmp)
 fit2<-lm(AUC~`CitG6m0`+`EMT-Signature`+`EGFR-pY1173`+`E-cadherin`,data=tmp)
 tab_model(fit1,fit2,
           dv.labels = c('Model 1 (AIC selected)','Model 2 (added EMT-Signature)'))
 ```
 
-#### 5I
-```{r 5I, warning = FALSE,message=FALSE,fig.height = 3,fig.width=3}
+#### 5J
+```{r 5J, warning = FALSE,message=FALSE,fig.height = 3,fig.width=3}
 yy<-data.frame(x=fit1$fitted.values,y=tmp$AUC)
 ggplot(yy,aes(x=x,y=y))+geom_point(colour='navy',alpha=0.4,size=3)+
   geom_smooth(method='lm',se=F,colour=scales::alpha('black',0.3))+
@@ -831,7 +863,24 @@ grid.newpage();grid.draw(legend)
 
 ### Fig S1
 #### S1A
-```{r S1A, warning = FALSE,message=FALSE,fig.height = 4,fig.width=4}
+```{r S1A, warning = FALSE,message=FALSE,fig.height = 8,fig.width=3}
+doubling.time=(48/log2(dat$`Day3/Day1`)+96/log2(dat$`Day5/Day1`))/2
+nutrients<-dat[,c('Lac','Glc','Lac/Glc','Glu','Gln','Glu/Gln')]
+nutrients.norm<-nutrients
+nutrients.norm[]<-apply(nutrients,2,FUN=function(x) x/((2^(7/doubling.time)+1)/2))
+nutrients.norm$`Glu/Gln`<-nutrients.norm$Glu/nutrients.norm$Gln
+nutrients.norm$`Lac/Glc`<-nutrients.norm$Lac/nutrients.norm$Glc
+tmp<-data.frame(melt(nutrients[,c(1,2,4,5)]),corrected=melt(nutrients.norm[,c(1,2,4,5)])[,2])
+colnames(tmp)[1:2]<-c('feature','uncorrected')
+tmp$cor<-rep(unlist(lapply(names(nutrients)[c(1,2,4,5)],FUN=function(x) round(cor.test(nutrients[,x],nutrients.norm[,x])$estimate,3))),each=nrow(nutrients))
+tmp$feature_name=factor(paste(tmp$feature,tmp$cor,sep="\nr = "),ordered = F)
+tmp$feature_name=factor(tmp$feature_name,levels(tmp$feature_name)[c(1,4,2,3)])
+ggplot(tmp,aes(x=uncorrected,y=corrected))+geom_point(alpha=0.3)+theme_classic()+facet_wrap(~feature_name,scale='free',ncol = 1)+
+  xlab('normalized to final protein content')+ylab('normalized to estimated average protein content in 7h growth')
+```
+
+#### S1B
+```{r S1B, warning = FALSE,message=FALSE,fig.height = 4,fig.width=4}
 replicate.sd<-list()
 cell.sd<-list()
 new.names<-c('CitG6','CitG24','CitQ6','CitQ24','SerG6','SerG24',
@@ -865,9 +914,9 @@ ggplot(tmp,aes(x=btw.cell.sd,y=btw.rep.sd.mean,colour=metabolite,shape=tracer,al
   theme_classic()+ylim(0,22)+xlim(0,22)
 ```
 
-#### S1B was made by Pei-Hsuan Chen
-#### S1C
-```{r S1C, warning = FALSE,message=FALSE,fig.height = 3,fig.width=9}
+#### S1C was made by Pei-Hsuan Chen
+#### S1D
+```{r S1D, warning = FALSE,message=FALSE,fig.height = 3,fig.width=9}
 diversity.plot<-function(sheet,cell_lines,tracer){
   tmp<-read.xlsx(wb, sheet = sheet,rowNames = T,colNames = T,startRow = 2)
   tmp$Cell.line<-toupper(tmp$Cell.line)
@@ -898,8 +947,8 @@ diversity.plot<-function(sheet,cell_lines,tracer){
 diversity.plot(sheet='CitG6',cell_lines = c('HCC44','H1869','H1395'),tracer='glucose')
 ```
 
-#### S1D
-```{r S1D, warning = FALSE,message=FALSE,fig.height = 3,fig.width=9}
+#### S1E
+```{r S1E, warning = FALSE,message=FALSE,fig.height = 3,fig.width=9}
 diversity.plot(sheet='CitQ6',cell_lines = c('H1975','H441','H1395'),tracer='glutamine')
 ```
 
@@ -1102,1184 +1151,6 @@ legend <- cowplot::get_legend(hl.plot(apply(brdu,2,mean),feature='Brdu Staining'
 grid.newpage();grid.draw(legend)
 ```
 
-### GSEA (Figures 5A-B and S5A-B)
-###### The following code chunk is for showing only. It is not executed here because it generates many output files.
-```{r GSEA, warning = FALSE,message=FALSE,eval=FALSE}
-GE<-readRDS('data/illumina_gene_level.rds')
-MF<-readRDS('data/metabolic_profiling_data.rds')
-MF<-MF[,c('CitG6m0','CitQ6m5')]
-c2cp<-readRDS('data/c2cp.rds')
-c2cgp<-readRDS('data/c2cgp.rds')
-geneset.collection<-list(c2cp,c2cgp)
-names(geneset.collection)<-c('c2cp','c2cgp')
-
-parent.dir<-"GSEA/"
-dir.create(parent.dir)
-
-# The following was adpated from script downloaded from http://software.broadinstitute.org/gsea/downloads.jsp
-# Note that spearman rank correlation was added as the gene ranking metric
-
-adjust.param <- 0.5
-nperm<-1000
-gs.size.threshold.min<-10
-gs.size.threshold.max<-500
-weighted.score.type<-1
-phen1<-"high"
-phen2<-"low"
-
-
-#import enrichmentscore function
-GSEA.EnrichmentScore <- function(gene.list, gene.set, weighted.score.type = 1, correl.vector = NULL) {  
-  
-  tag.indicator <- sign(match(gene.list, gene.set, nomatch=0))    # notice that the sign is 0 (no tag) or 1 (tag) 
-  no.tag.indicator <- 1 - tag.indicator 
-  N <- length(gene.list) 
-  Nh <- length(gene.set) 
-  Nm <-  N - Nh 
-  if (weighted.score.type == 0) {
-    correl.vector <- rep(1, N)
-  }
-  alpha <- weighted.score.type
-  correl.vector <- abs(correl.vector**alpha)
-  sum.correl.tag    <- sum(correl.vector[tag.indicator == 1])
-  norm.tag    <- 1.0/sum.correl.tag
-  norm.no.tag <- 1.0/Nm
-  RES <- cumsum(tag.indicator * correl.vector * norm.tag - no.tag.indicator * norm.no.tag)      
-  max.ES <- max(RES)
-  min.ES <- min(RES)
-  if (max.ES > - min.ES) {
-    #      ES <- max.ES
-    ES <- signif(max.ES, digits = 5)
-    arg.ES <- which.max(RES)
-  } else {
-    #      ES <- min.ES
-    ES <- signif(min.ES, digits=5)
-    arg.ES <- which.min(RES)
-  }
-  return(list(ES = ES, arg.ES = arg.ES, RES = RES, indicator = tag.indicator))    
-}
-GSEA.EnrichmentScore2 <- function(gene.list, gene.set, weighted.score.type = 1, correl.vector = NULL) {  
-  N <- length(gene.list) 
-  Nh <- length(gene.set) 
-  Nm <-  N - Nh 
-  
-  loc.vector <- vector(length=N, mode="numeric")
-  peak.res.vector <- vector(length=Nh, mode="numeric")
-  valley.res.vector <- vector(length=Nh, mode="numeric")
-  tag.correl.vector <- vector(length=Nh, mode="numeric")
-  tag.diff.vector <- vector(length=Nh, mode="numeric")
-  tag.loc.vector <- vector(length=Nh, mode="numeric")
-  
-  loc.vector[gene.list] <- seq(1, N)
-  tag.loc.vector <- loc.vector[gene.set]
-  
-  tag.loc.vector <- sort(tag.loc.vector, decreasing = F)
-  
-  if (weighted.score.type == 0) {
-    tag.correl.vector <- rep(1, Nh)
-  } else if (weighted.score.type == 1) {
-    tag.correl.vector <- correl.vector[tag.loc.vector]
-    tag.correl.vector <- abs(tag.correl.vector)
-  } else if (weighted.score.type == 2) {
-    tag.correl.vector <- correl.vector[tag.loc.vector]*correl.vector[tag.loc.vector]
-    tag.correl.vector <- abs(tag.correl.vector)
-  } else {
-    tag.correl.vector <- correl.vector[tag.loc.vector]**weighted.score.type
-    tag.correl.vector <- abs(tag.correl.vector)
-  }
-  
-  norm.tag <- 1.0/sum(tag.correl.vector)
-  tag.correl.vector <- tag.correl.vector * norm.tag
-  norm.no.tag <- 1.0/Nm
-  tag.diff.vector[1] <- (tag.loc.vector[1] - 1) 
-  tag.diff.vector[2:Nh] <- tag.loc.vector[2:Nh] - tag.loc.vector[1:(Nh - 1)] - 1
-  tag.diff.vector <- tag.diff.vector * norm.no.tag
-  peak.res.vector <- cumsum(tag.correl.vector - tag.diff.vector)
-  valley.res.vector <- peak.res.vector - tag.correl.vector
-  max.ES <- max(peak.res.vector)
-  min.ES <- min(valley.res.vector)
-  ES <- signif(ifelse(max.ES > - min.ES, max.ES, min.ES), digits=5)
-  
-  return(list(ES = ES))
-  
-}
-
-#heatmaps
-GSEA.HeatMapPlot <- function(V, row.names = F, col.names = F, main = " ", xlab=" ", ylab=" ") {
-  n.rows <- length(V[,1])
-  n.cols <- length(V[1,])
-  row.mean <- apply(V, MARGIN=1, FUN=mean)
-  row.sd <- apply(V, MARGIN=1, FUN=sd)
-  row.n <- length(V[,1])
-  for (i in 1:n.rows) {
-    if (row.sd[i] == 0) {
-      V[i,] <- 0
-    } else {
-      V[i,] <- (V[i,] - row.mean[i])/(0.5 * row.sd[i])
-    }
-    V[i,] <- ifelse(V[i,] < -6, -6, V[i,])
-    V[i,] <- ifelse(V[i,] > 6, 6, V[i,])
-  }
-  
-  mycol <- c("#0000FF", "#0000FF", "#4040FF", "#7070FF", "#8888FF", "#A9A9FF", "#D5D5FF", "#EEE5EE", "#FFAADA", "#FF9DB0", "#FF7080", "#FF5A5A", "#FF4040", "#FF0D1D", "#FF0000") # blue-pinkogram colors. The first and last are the colors to indicate the class vector (phenotype). This is the 1998-vintage, pre-gene cluster, original pinkogram color map
-  
-  mid.range.V <- mean(range(V)) - 0.1
-  heatm <- matrix(0, nrow = n.rows + 1, ncol = n.cols)
-  heatm[1:n.rows,] <- V[seq(n.rows, 1, -1),]
-  heatm[n.rows + 1,] <- seq(7, -7,length=cols)
-  image(1:n.cols, 1:(n.rows + 1), t(heatm), col=mycol, axes=FALSE, main=main, xlab= xlab, ylab=ylab)
-
-  if (length(row.names) > 1) {
-    numC <- nchar(row.names)
-    size.row.char <- 35/(n.rows + 5)
-    size.col.char <- 25/(n.cols + 5)
-    maxl <- floor(n.rows/1.6)
-    for (i in 1:n.rows) {
-      row.names[i] <- substr(row.names[i], 1, maxl)
-    }
-    row.names <- c(row.names[seq(n.rows, 1, -1)], "Class")
-    axis(2, at=1:(n.rows + 1), labels=row.names, adj= 0.5, tick=FALSE, las = 1, cex.axis=size.row.char, font.axis=2, line=-1)
-  }
-  
-  if (length(col.names) > 1) {
-    axis(1, at=1:n.cols, labels=col.names, tick=FALSE, las = 3, cex.axis=size.col.char, font.axis=2, line=-1)
-  }
-  
-  #C <- split(col.labels, col.labels)
-  #class1.size <- length(C[[1]])
-  #class2.size <- length(C[[2]])
-  #axis(3, at=c(floor(class1.size/2),class1.size + floor(class2.size/2)), labels=col.classes, tick=FALSE, las = 1, cex.axis=1.25, font.axis=2, line=-1)
-  
-  return()
-}
-
-####spearman correlation metrics###
-new.ranking<-function(MF=MF, nperm=nperm){
-  common<-intersect(row.names(GE),row.names(MF))
-  MF.GE<-cbind(MF[common,],GE[common,])
-  MF.GE.r<-apply(MF.GE,2,rank)
-  obs.tot.matrix<-matrix(0,nrow=ncol(GE),ncol=ncol(MF))
-  for(i in 1:ncol(GE)){
-    for(j in 1:ncol(MF)){
-      obs.tot.matrix[i,j]<-cor(MF.GE.r[,c(j,(ncol(MF)+i))])[1,2]
-    }
-    if(i%%1000==0) print(i)
-  }
-  colnames(obs.tot.matrix)<-colnames(MF)
-  row.names(obs.tot.matrix)<-colnames(GE)
-  order.tot.matrix<-obs.tot.matrix
-  order.tot.matrix<-apply(obs.tot.matrix,2,FUN=function(x) order(x, decreasing=T))
-  
-  ps.matrix<-matrix(0,nrow=ncol(GE),ncol=nperm)
-  GE.common<-GE[common,]
-  GE.common<-apply(GE.common,2,rank)
-  for(i in 1:nperm){
-    temp<-sample(1:length(common),replace=F)
-    for(j in 1:ncol(GE)){
-      ps.matrix[j,i]<-cor(t(rbind(GE.common[,j],temp)))[1,2]
-      if(j%%2000==0) print(j)
-    }  
-    print(i)
-  }
-  order.ps.matrix<-ps.matrix
-  order.ps.matrix<-apply(ps.matrix,2,FUN=function(x) order(x, decreasing=T))
-  return(list(obs.tot.matrix,
-              order.tot.matrix,
-              ps.matrix,
-              order.ps.matrix))
-}
-
-
-#GSEA main function
-GSEA.new <- function(
-  #  input.ds, 
-  #  input.cls, 
-  #  gene.ann = "",
-  A,
-  phi,
-  correl.matrix,
-  order.matrix,
-  obs.ps,
-  gene.list2,
-  obs.gene.list2,
-  common,
-  gs.db, 
-  #  gs.ann = "",
-  output.directory = "", 
-  doc.string = "GSEA.analysis", 
-  non.interactive.run = F, 
-  #  reshuffling.type = "sample.labels", 
-  nperm = 1000, 
-  weighted.score.type = 1, 
-  nom.p.val.threshold = -1, 
-  fwer.p.val.threshold = -1, 
-  fdr.q.val.threshold = 0.25, 
-  topgs = 10,
-  adjust.FDR.q.val = T, 
-  gs.size.threshold.min = 25, 
-  gs.size.threshold.max = 500, 
-  #  reverse.sign = F, 
-  #  preproc.type = 0, 
-  random.seed = 123456, 
-  #  perm.type = 0, 
-  fraction = 1.0, 
-  #  replace = F,
-  #  save.intermediate.results = F,
-  #  OLD.GSEA = F,
-  use.fast.enrichment.routine = T) {
-  
-  print(" *** Running GSEA Analysis...")
-  
-  # provide what is needed by the function
-  
-  
-  if (output.directory != "")  {
-    
-    filename <- paste(output.directory, doc.string, "_params.txt", sep="", collapse="")  
-    
-    time.string <- as.character(as.POSIXlt(Sys.time(),"GMT"))
-    write(paste("Run of GSEA on ", time.string), file=filename)
-
-    if (regexpr(pattern=".gmt", gs.db[1]) == -1) {
-      #   write(paste("gs.db=", gs.db, sep=" "), file=filename, append=T) 
-    } else {
-      write(paste("gs.db=", gs.db, sep=" "), file=filename, append=T) 
-    }
-    write(paste("output.directory =", output.directory, sep=" "), file=filename, append=T) 
-    write(paste("doc.string = ", doc.string, sep=" "), file=filename, append=T) 
-    write(paste("nperm =", nperm, sep=" "), file=filename, append=T) 
-    write(paste("weighted.score.type =", weighted.score.type, sep=" "), file=filename, append=T) 
-    write(paste("nom.p.val.threshold =", nom.p.val.threshold, sep=" "), file=filename, append=T) 
-    write(paste("fwer.p.val.threshold =", fwer.p.val.threshold, sep=" "), file=filename, append=T) 
-    write(paste("fdr.q.val.threshold =", fdr.q.val.threshold, sep=" "), file=filename, append=T) 
-    write(paste("topgs =", topgs, sep=" "), file=filename, append=T)
-    write(paste("adjust.FDR.q.val =", adjust.FDR.q.val, sep=" "), file=filename, append=T) 
-    write(paste("gs.size.threshold.min =", gs.size.threshold.min, sep=" "), file=filename, append=T) 
-    write(paste("gs.size.threshold.max =", gs.size.threshold.max, sep=" "), file=filename, append=T) 
-  }
-  
-  # Start of GSEA methodology 
-  
-  if (.Platform$OS.type == "windows") {
-    #memory.limit(6000000000)
-    memory.limit()
-    #      print(c("Start memory size=",  memory.size()))
-  }
-  
-  
-  time1 <- proc.time()
-  
-  
-  max.Ng <- length(gs.db)
-  gs.db<-lapply(gs.db,FUN=function(x) intersect(x,colnames(GE)))
-  temp.size.G <- unlist(lapply(gs.db,length))
-  
-  max.size.G <- max(temp.size.G) 
-  ##debug
-  print(c("Original number of Gene Sets:", max.Ng))
-  print(c("Maximum gene set size:", max.size.G))
-  gs <- matrix(rep("null", max.Ng*max.size.G), nrow=max.Ng, ncol= max.size.G)
-  temp.names <- vector(length = max.Ng, mode = "character")
-  #temp.desc <- vector(length = max.Ng, mode = "character")
-  gs.count <- 1
-  for (i in 1:max.Ng) {
-    gene.set.size <- length(gs.db[[i]])
-    gene.set.name <- names(gs.db)[i]
-    gene.set.tags <- gs.db[[i]]
-    existing.set <- is.element(gene.set.tags, gene.labels)
-    set.size <- length(existing.set[existing.set == T])
-    if ((set.size < gs.size.threshold.min) || (set.size > gs.size.threshold.max)) next
-    temp.size.G[gs.count] <- set.size
-    gs[gs.count,] <- c(gene.set.tags[existing.set], rep("null", max.size.G - temp.size.G[gs.count]))
-    temp.names[gs.count] <- gene.set.name
-    gs.count <- gs.count + 1
-  } 
-  Ng <- gs.count - 1
-  gs.names <- vector(length = Ng, mode = "character")
-  size.G <- vector(length = Ng, mode = "numeric") 
-  gs.names <- temp.names[1:Ng]
-  size.G <- temp.size.G[1:Ng]
-  
-  N <- ncol(GE)#length(A[,1])
-  Ns <- length(common)#length(A[1,])
-  
-  print(c("Number of genes:", N))
-  print(c("Number of Gene Sets:", Ng))
-  print(c("Number of samples:", Ns))
-  print(c("Original number of Gene Sets:", max.Ng))
-  print(c("Maximum gene set size:", max.size.G))
-  
-  # Read gene and gene set annotations if gene annotation file was provided
-  
-  all.gene.descs <- gene.labels
-  all.gene.symbols <- gene.labels
-
-  Obs.indicator <- matrix(nrow= Ng, ncol=N)
-  Obs.RES <- matrix(nrow= Ng, ncol=N)
-  
-  Obs.ES <- vector(length = Ng, mode = "numeric")
-  Obs.arg.ES <- vector(length = Ng, mode = "numeric")
-  Obs.ES.norm <- vector(length = Ng, mode = "numeric")
-  
-  time2 <- proc.time()
-  
-  # GSEA methodology
-  
-  # Compute observed and random permutation gene rankings
-  
-  signal.strength <- vector(length=Ng, mode="numeric")
-  tag.frac <- vector(length=Ng, mode="numeric")
-  gene.frac <- vector(length=Ng, mode="numeric")
-  coherence.ratio <- vector(length=Ng, mode="numeric")
-  obs.phi.norm <- matrix(nrow = Ng, ncol = nperm)
-  
-  
-  obs.index <- gene.list2
-  obs.gene.labels <- gene.labels[obs.index]       
-  obs.gene.descs <- all.gene.descs[obs.index]       
-  obs.gene.symbols <- all.gene.symbols[obs.index]       
-
-  #gene.list2 <- obs.index
-  for (i in 1:Ng) {
-    print(paste("Computing observed enrichment for gene set:", i, gs.names[i], sep=" ")) 
-    gene.set <- gs[i,gs[i,] != "null"]
-    gene.set2 <- vector(length=length(gene.set), mode = "numeric")
-    gene.set2 <- match(gene.set, gene.labels)
-    GSEA.results <- GSEA.EnrichmentScore(gene.list=gene.list2, gene.set=gene.set2, weighted.score.type=weighted.score.type, correl.vector = obs.ps)
-    Obs.ES[i] <- GSEA.results$ES
-    Obs.arg.ES[i] <- GSEA.results$arg.ES
-    Obs.RES[i,] <- GSEA.results$RES
-    Obs.indicator[i,] <- GSEA.results$indicator
-    if (Obs.ES[i] >= 0) {  # compute signal strength
-      tag.frac[i] <- sum(Obs.indicator[i,1:Obs.arg.ES[i]])/size.G[i]
-      gene.frac[i] <- Obs.arg.ES[i]/N
-    } else {
-      tag.frac[i] <- sum(Obs.indicator[i, Obs.arg.ES[i]:N])/size.G[i]
-      gene.frac[i] <- (N - Obs.arg.ES[i] + 1)/N
-    }
-    signal.strength[i] <- tag.frac[i] * (1 - gene.frac[i]) * (N / (N - size.G[i]))
-  }
-  
-  # Compute enrichment for random permutations HAS BEEN DONE
-  # Compute enrichment score for observed ranks
-  
-  
-  phi.norm <- matrix(nrow = Ng, ncol = nperm)
-  obs.phi <- matrix(nrow = Ng, ncol = nperm)
-  
-  for (i in 1:Ng) {
-    print(paste("Computing random permutations' enrichment for gene set:", i, gs.names[i], sep=" ")) 
-    gene.set <- gs[i,gs[i,] != "null"]
-    gene.set2 <- vector(length=length(gene.set), mode = "numeric")
-    gene.set2 <- match(gene.set, gene.labels)
-    
-    GSEA.results <- GSEA.EnrichmentScore2(gene.list=obs.gene.list2, gene.set=gene.set2, weighted.score.type=weighted.score.type, correl.vector=obs.ps)
-    
-    obs.phi[i, 1] <- GSEA.results$ES
-    for (r in 2:nperm) {
-      obs.phi[i, r] <- obs.phi[i, 1]
-    }
-    gc()
-  }
-  
-  # Compute 3 types of p-values
-  
-  # Find nominal p-values       
-  
-  print("Computing nominal p-values...")
-  
-  p.vals <- matrix(0, nrow = Ng, ncol = 2)
-  
-  
-  for (i in 1:Ng) {
-    pos.phi <- NULL
-    neg.phi <- NULL
-    for (j in 1:nperm) {
-      if (phi[i, j] >= 0) {
-        pos.phi <- c(pos.phi, phi[i, j]) 
-      } else {
-        neg.phi <- c(neg.phi, phi[i, j]) 
-      }
-    }
-    ES.value <- Obs.ES[i]
-    if (ES.value >= 0) {
-      p.vals[i, 1] <- signif(sum(pos.phi >= ES.value)/length(pos.phi), digits=5)
-    } else {
-      p.vals[i, 1] <- signif(sum(neg.phi <= ES.value)/length(neg.phi), digits=5)
-    }
-  }
-  
-  # Find effective size 
-  
-  erf <- function (x) 
-  {
-    2 * pnorm(sqrt(2) * x)
-  }
-  
-  KS.mean <- function(N) { # KS mean as a function of set size N
-    S <- 0
-    for (k in -100:100) {
-      if (k == 0) next
-      S <- S + 4 * (-1)**(k + 1) * (0.25 * exp(-2 * k * k * N) - sqrt(2 * pi) *  erf(sqrt(2 * N) * k)/(16 * k * sqrt(N)))
-    }
-    return(abs(S))
-  }
-  
-  
-  # Rescaling normalization for each gene set null
-  
-  print("Computing rescaling normalization for each gene set null...")
-  
-  for (i in 1:Ng) {
-    pos.phi <- NULL
-    neg.phi <- NULL
-    for (j in 1:nperm) {
-      if (phi[i, j] >= 0) {
-        pos.phi <- c(pos.phi, phi[i, j]) 
-      } else {
-        neg.phi <- c(neg.phi, phi[i, j]) 
-      }
-    }
-    pos.m <- mean(pos.phi)
-    neg.m <- mean(abs(neg.phi))
-    
-    pos.phi <- pos.phi/pos.m
-    neg.phi <- neg.phi/neg.m
-    for (j in 1:nperm) {
-      if (phi[i, j] >= 0) {
-        phi.norm[i, j] <- phi[i, j]/pos.m
-      } else {
-        phi.norm[i, j] <- phi[i, j]/neg.m
-      }
-    }
-    for (j in 1:nperm) {
-      if (obs.phi[i, j] >= 0) {
-        obs.phi.norm[i, j] <- obs.phi[i, j]/pos.m
-      } else {
-        obs.phi.norm[i, j] <- obs.phi[i, j]/neg.m
-      }
-    }
-    if (Obs.ES[i] >= 0) {
-      Obs.ES.norm[i] <- Obs.ES[i]/pos.m
-    } else {
-      Obs.ES.norm[i] <- Obs.ES[i]/neg.m
-    }
-  }
-  
-  # Compute FWER p-vals
-  
-  print("Computing FWER p-values...")
-  
-  max.ES.vals.p <- NULL
-  max.ES.vals.n <- NULL
-  for (j in 1:nperm) {
-    pos.phi <- NULL
-    neg.phi <- NULL
-    for (i in 1:Ng) {
-      if (phi.norm[i, j] >= 0) {
-        pos.phi <- c(pos.phi, phi.norm[i, j]) 
-      } else {
-        neg.phi <- c(neg.phi, phi.norm[i, j]) 
-      }
-    }
-    if (length(pos.phi) > 0) {
-      max.ES.vals.p <- c(max.ES.vals.p, max(pos.phi))
-    }
-    if (length(neg.phi) > 0) {
-      max.ES.vals.n <- c(max.ES.vals.n, min(neg.phi))
-    }
-  }
-  for (i in 1:Ng) {
-    ES.value <- Obs.ES.norm[i]
-    if (Obs.ES.norm[i] >= 0) {
-      p.vals[i, 2] <- signif(sum(max.ES.vals.p >= ES.value)/length(max.ES.vals.p), digits=5)
-    } else {
-      p.vals[i, 2] <- signif(sum(max.ES.vals.n <= ES.value)/length(max.ES.vals.n), digits=5)
-    }
-  }
-  
-  # Compute FDRs 
-  
-  print("Computing FDR q-values...")
-  
-  NES <- vector(length=Ng, mode="numeric")
-  phi.norm.mean  <- vector(length=Ng, mode="numeric")
-  obs.phi.norm.mean  <- vector(length=Ng, mode="numeric")
-  phi.norm.median  <- vector(length=Ng, mode="numeric")
-  obs.phi.norm.median  <- vector(length=Ng, mode="numeric")
-  phi.norm.mean  <- vector(length=Ng, mode="numeric")
-  obs.phi.mean  <- vector(length=Ng, mode="numeric")
-  FDR.mean <- vector(length=Ng, mode="numeric")
-  FDR.median <- vector(length=Ng, mode="numeric")
-  phi.norm.median.d <- vector(length=Ng, mode="numeric")
-  obs.phi.norm.median.d <- vector(length=Ng, mode="numeric")
-  
-  Obs.ES.index <- order(Obs.ES.norm, decreasing=T)
-  Orig.index <- seq(1, Ng)
-  Orig.index <- Orig.index[Obs.ES.index]
-  Orig.index <- order(Orig.index, decreasing=F)
-  Obs.ES.norm.sorted <- Obs.ES.norm[Obs.ES.index]
-  gs.names.sorted <- gs.names[Obs.ES.index]
-  
-  for (k in 1:Ng) {
-    NES[k] <- Obs.ES.norm.sorted[k]
-    ES.value <- NES[k]
-    count.col <- vector(length=nperm, mode="numeric")
-    obs.count.col <- vector(length=nperm, mode="numeric")
-    for (i in 1:nperm) {
-      phi.vec <- phi.norm[,i]
-      obs.phi.vec <- obs.phi.norm[,i]
-      if (ES.value >= 0) {
-        count.col.norm <- sum(phi.vec >= 0)
-        obs.count.col.norm <- sum(obs.phi.vec >= 0)
-        count.col[i] <- ifelse(count.col.norm > 0, sum(phi.vec >= ES.value)/count.col.norm, 0)
-        obs.count.col[i] <- ifelse(obs.count.col.norm > 0, sum(obs.phi.vec >= ES.value)/obs.count.col.norm, 0)
-      } else {
-        count.col.norm <- sum(phi.vec < 0)
-        obs.count.col.norm <- sum(obs.phi.vec < 0)
-        count.col[i] <- ifelse(count.col.norm > 0, sum(phi.vec <= ES.value)/count.col.norm, 0)
-        obs.count.col[i] <- ifelse(obs.count.col.norm > 0, sum(obs.phi.vec <= ES.value)/obs.count.col.norm, 0)
-      }
-    }
-    phi.norm.mean[k] <- mean(count.col)
-    obs.phi.norm.mean[k] <- mean(obs.count.col)
-    phi.norm.median[k] <- median(count.col)
-    obs.phi.norm.median[k] <- median(obs.count.col)
-    FDR.mean[k] <- ifelse(phi.norm.mean[k]/obs.phi.norm.mean[k] < 1, phi.norm.mean[k]/obs.phi.norm.mean[k], 1)
-    FDR.median[k] <- ifelse(phi.norm.median[k]/obs.phi.norm.median[k] < 1, phi.norm.median[k]/obs.phi.norm.median[k], 1)
-  }
-  
-  # adjust q-values
-  
-  if (adjust.FDR.q.val == T) {
-    pos.nes <- length(NES[NES >= 0])
-    min.FDR.mean <- FDR.mean[pos.nes]
-    min.FDR.median <- FDR.median[pos.nes]
-    for (k in seq(pos.nes - 1, 1, -1)) {
-      if (FDR.mean[k] < min.FDR.mean) {
-        min.FDR.mean <- FDR.mean[k]
-      }
-      if (min.FDR.mean < FDR.mean[k]) {
-        FDR.mean[k] <- min.FDR.mean
-      }
-    }
-    
-    neg.nes <- pos.nes + 1
-    min.FDR.mean <- FDR.mean[neg.nes]
-    min.FDR.median <- FDR.median[neg.nes]
-    for (k in seq(neg.nes + 1, Ng)) {
-      if (FDR.mean[k] < min.FDR.mean) {
-        min.FDR.mean <- FDR.mean[k]
-      }
-      if (min.FDR.mean < FDR.mean[k]) {
-        FDR.mean[k] <- min.FDR.mean
-      }
-    }
-  }
-  
-  obs.phi.norm.mean.sorted <- obs.phi.norm.mean[Orig.index]
-  phi.norm.mean.sorted <- phi.norm.mean[Orig.index]
-  FDR.mean.sorted <- FDR.mean[Orig.index]
-  FDR.median.sorted <- FDR.median[Orig.index]
-  
-  #   Compute global statistic
-  
-  glob.p.vals <- vector(length=Ng, mode="numeric")
-  NULL.pass <- vector(length=nperm, mode="numeric")
-  OBS.pass <- vector(length=nperm, mode="numeric")
-  
-  for (k in 1:Ng) {
-    NES[k] <- Obs.ES.norm.sorted[k]
-    if (NES[k] >= 0) {
-      for (i in 1:nperm) {
-        NULL.pos <- sum(phi.norm[,i] >= 0)            
-        NULL.pass[i] <- ifelse(NULL.pos > 0, sum(phi.norm[,i] >= NES[k])/NULL.pos, 0)
-        OBS.pos <- sum(obs.phi.norm[,i] >= 0)
-        OBS.pass[i] <- ifelse(OBS.pos > 0, sum(obs.phi.norm[,i] >= NES[k])/OBS.pos, 0)
-      }
-    } else {
-      for (i in 1:nperm) {
-        NULL.neg <- sum(phi.norm[,i] < 0)
-        NULL.pass[i] <- ifelse(NULL.neg > 0, sum(phi.norm[,i] <= NES[k])/NULL.neg, 0)
-        OBS.neg <- sum(obs.phi.norm[,i] < 0)
-        OBS.pass[i] <- ifelse(OBS.neg > 0, sum(obs.phi.norm[,i] <= NES[k])/OBS.neg, 0)
-      }
-    }
-    glob.p.vals[k] <- sum(NULL.pass >= mean(OBS.pass))/nperm
-  }
-  glob.p.vals.sorted <- glob.p.vals[Orig.index]
-  
-  # Produce results report
-  
-  print("Producing result tables and plots...")
-  
-  Obs.ES <- signif(Obs.ES, digits=5)
-  Obs.ES.norm <- signif(Obs.ES.norm, digits=5)
-  p.vals <- signif(p.vals, digits=4)
-  signal.strength <- signif(signal.strength, digits=3)
-  tag.frac <- signif(tag.frac, digits=3)
-  gene.frac <- signif(gene.frac, digits=3)
-  FDR.mean.sorted <- signif(FDR.mean.sorted, digits=5)
-  FDR.median.sorted <-  signif(FDR.median.sorted, digits=5)
-  glob.p.vals.sorted <- signif(glob.p.vals.sorted, digits=5)
-  
-  report <- data.frame(cbind(gs.names, size.G, Obs.ES, Obs.ES.norm, p.vals[,1], FDR.mean.sorted, p.vals[,2], tag.frac, gene.frac, signal.strength, FDR.median.sorted, glob.p.vals.sorted))
-  names(report) <- c("GS", "SIZE", "ES", "NES", "NOM p-val", "FDR q-val", "FWER p-val", "Tag %", "Gene %", "Signal", "FDR (median)", "glob.p.val")
-
-  report2 <- report
-  report.index2 <- order(Obs.ES.norm, decreasing=T)
-  for (i in 1:Ng) {
-    report2[i,] <- report[report.index2[i],]
-  }   
-  report3 <- report
-  report.index3 <- order(Obs.ES.norm, decreasing=F)
-  for (i in 1:Ng) {
-    report3[i,] <- report[report.index3[i],]
-  }   
-  phen1.rows <- length(Obs.ES.norm[Obs.ES.norm >= 0])
-  phen2.rows <- length(Obs.ES.norm[Obs.ES.norm < 0])
-  report.phen1 <- report2[1:phen1.rows,]
-  report.phen2 <- report3[1:phen2.rows,]
-  
-  if (output.directory != "")  {
-    if (phen1.rows > 0) {
-      filename <- paste(output.directory, doc.string, ".SUMMARY.RESULTS.REPORT.", phen1,".txt", sep="", collapse="")
-      write.table(report.phen1, file = filename, quote=F, row.names=F, sep = "\t")
-    }
-    if (phen2.rows > 0) {
-      filename <- paste(output.directory, doc.string, ".SUMMARY.RESULTS.REPORT.", phen2,".txt", sep="", collapse="")
-      write.table(report.phen2, file = filename, quote=F, row.names=F, sep = "\t")
-    }
-  }
-  
-  # Global plots
-  
-  if (output.directory != "")  {
-    if (non.interactive.run == F) {
-      if (.Platform$OS.type == "windows") {
-        glob.filename <- paste(output.directory, doc.string, ".global.plots", sep="", collapse="")
-        windows(width = 10, height = 10)
-      } else if (.Platform$OS.type == "unix") {
-        glob.filename <- paste(output.directory, doc.string, ".global.plots.pdf", sep="", collapse="")
-        pdf(file=glob.filename, height = 10, width = 10)
-      }
-    } else {
-      if (.Platform$OS.type == "unix") {
-        glob.filename <- paste(output.directory, doc.string, ".global.plots.pdf", sep="", collapse="")
-        pdf(file=glob.filename, height = 10, width = 10)
-      } else if (.Platform$OS.type == "windows") {
-        glob.filename <- paste(output.directory, doc.string, ".global.plots.pdf", sep="", collapse="")
-        pdf(file=glob.filename, height = 10, width = 10)
-      }
-    }
-  }
-  
-  nf <- layout(matrix(c(1,2,3,4), 2, 2, byrow=T), c(1,1), c(1,1), TRUE)
-  
-  # plot spearman correlation profile
-  
-  location <- 1:N
-  max.corr <- max(obs.ps)
-  min.corr <- min(obs.ps)
-  
-  x <- plot(location, obs.ps, ylab = "Spearman Correlation", xlab = "Gene List Location", main = "Gene List Correlation (spearman) Profile", type = "l", lwd = 2, cex = 0.9, col = 1)            
-  for (i in seq(1, N, 20)) {
-    lines(c(i, i), c(0, obs.ps[i]), lwd = 3, cex = 0.9, col = colors()[12]) # shading of correlation plot
-  }
-  x <- points(location, obs.ps, type = "l", lwd = 2, cex = 0.9, col = 1)            
-  lines(c(1, N), c(0, 0), lwd = 2, lty = 1, cex = 0.9, col = 1) # zero correlation horizontal line
-  temp <- order(abs(obs.ps), decreasing=T)
-  arg.correl <- temp[N]
-  lines(c(arg.correl, arg.correl), c(min.corr, 0.7*max.corr), lwd = 2, lty = 3, cex = 0.9, col = 1) # zero correlation vertical line
-  
-  area.bias <- signif(100*(sum(obs.ps[1:arg.correl]) + sum(obs.ps[arg.correl:N]))/sum(abs(obs.ps[1:N])), digits=3)
-  area.phen <- ifelse(area.bias >= 0, phen1, phen2)
-  delta.string <- paste("Corr. Area Bias to \"", area.phen, "\" =", abs(area.bias), "%", sep="", collapse="")
-  zero.crossing.string <- paste("Zero Crossing at location ", arg.correl, " (",  signif(100*arg.correl/N, digits=3), " %)")
-  leg.txt <- c(delta.string, zero.crossing.string)
-  legend(x=N/10, y=max.corr, bty="n", bg = "white", legend=leg.txt, cex = 0.9)
-  
-  leg.txt <- paste("\"", phen1, "\" ", sep="", collapse="")
-  text(x=1, y=-0.05*max.corr, adj = c(0, 1), labels=leg.txt, cex = 0.9)
-  
-  leg.txt <- paste("\"", phen2, "\" ", sep="", collapse="")
-  text(x=N, y=0.05*max.corr, adj = c(1, 0), labels=leg.txt, cex = 0.9)
-  
-  if (Ng > 1) { # make these plots only if there are multiple gene sets.
-    
-    # compute plots of actual (weighted) null and observed
-    
-    phi.densities.pos <- matrix(0, nrow=512, ncol=nperm)
-    phi.densities.neg <- matrix(0, nrow=512, ncol=nperm)
-    obs.phi.densities.pos <- matrix(0, nrow=512, ncol=nperm)
-    obs.phi.densities.neg <- matrix(0, nrow=512, ncol=nperm)
-    phi.density.mean.pos <- vector(length=512, mode = "numeric")
-    phi.density.mean.neg <- vector(length=512, mode = "numeric")
-    obs.phi.density.mean.pos <- vector(length=512, mode = "numeric")
-    obs.phi.density.mean.neg <- vector(length=512, mode = "numeric")
-    phi.density.median.pos <- vector(length=512, mode = "numeric")
-    phi.density.median.neg <- vector(length=512, mode = "numeric")
-    obs.phi.density.median.pos <- vector(length=512, mode = "numeric")
-    obs.phi.density.median.neg <- vector(length=512, mode = "numeric")
-    x.coor.pos <-  vector(length=512, mode = "numeric")
-    x.coor.neg <-  vector(length=512, mode = "numeric")
-    
-    for (i in 1:nperm) {
-      pos.phi <- phi.norm[phi.norm[, i] >= 0, i]
-      if (length(pos.phi) > 2) {
-        temp <- density(pos.phi, adjust=adjust.param, n = 512, from=0, to=3.5)
-      } else {
-        temp <- list(x = 3.5*(seq(1, 512) - 1)/512, y = rep(0.001, 512))
-      }
-      phi.densities.pos[, i] <- temp$y
-      norm.factor <- sum(phi.densities.pos[, i])
-      phi.densities.pos[, i] <- phi.densities.pos[, i]/norm.factor
-      if (i == 1) {
-        x.coor.pos <- temp$x
-      }
-      
-      neg.phi <- phi.norm[phi.norm[, i] < 0, i]
-      if (length(neg.phi) > 2) {
-        temp <- density(neg.phi, adjust=adjust.param, n = 512, from=-3.5, to=0)
-      } else {
-        temp <- list(x = 3.5*(seq(1, 512) - 1)/512, y = rep(0.001, 512))
-      }
-      phi.densities.neg[, i] <- temp$y
-      norm.factor <- sum(phi.densities.neg[, i])
-      phi.densities.neg[, i] <- phi.densities.neg[, i]/norm.factor
-      if (i == 1) {
-        x.coor.neg <- temp$x
-      }
-      pos.phi <- obs.phi.norm[obs.phi.norm[, i] >= 0, i]
-      if (length(pos.phi) > 2) {
-        temp <- density(pos.phi, adjust=adjust.param, n = 512, from=0, to=3.5)
-      } else {
-        temp <- list(x = 3.5*(seq(1, 512) - 1)/512, y = rep(0.001, 512))
-      }
-      obs.phi.densities.pos[, i] <- temp$y
-      norm.factor <- sum(obs.phi.densities.pos[, i])
-      obs.phi.densities.pos[, i] <- obs.phi.densities.pos[, i]/norm.factor
-      
-      neg.phi <- obs.phi.norm[obs.phi.norm[, i] < 0, i]
-      if (length(neg.phi)> 2) {  
-        temp <- density(neg.phi, adjust=adjust.param, n = 512, from=-3.5, to=0)
-      } else {
-        temp <- list(x = 3.5*(seq(1, 512) - 1)/512, y = rep(0.001, 512))
-      }
-      obs.phi.densities.neg[, i] <- temp$y
-      norm.factor <- sum(obs.phi.densities.neg[, i])
-      obs.phi.densities.neg[, i] <- obs.phi.densities.neg[, i]/norm.factor
-      
-    }
-    phi.density.mean.pos <- apply(phi.densities.pos, 1, mean)
-    phi.density.mean.neg <- apply(phi.densities.neg, 1, mean)
-    
-    obs.phi.density.mean.pos <- apply(obs.phi.densities.pos, 1, mean)
-    obs.phi.density.mean.neg <- apply(obs.phi.densities.neg, 1, mean)
-    
-    phi.density.median.pos <- apply(phi.densities.pos, 1, median)
-    phi.density.median.neg <- apply(phi.densities.neg, 1, median)
-    
-    obs.phi.density.median.pos <- apply(obs.phi.densities.pos, 1, median)
-    obs.phi.density.median.neg <- apply(obs.phi.densities.neg, 1, median)
-    
-    x <- c(x.coor.neg, x.coor.pos)
-    x.plot.range <- range(x)
-    y1 <- c(phi.density.mean.neg, phi.density.mean.pos)
-    y2 <- c(obs.phi.density.mean.neg, obs.phi.density.mean.pos)
-    y.plot.range <- c(-0.3*max(c(y1, y2)),  max(c(y1, y2)))
-    
-    print(c(y.plot.range, max(c(y1, y2)), max(y1), max(y2)))
-    
-    plot(x, y1, xlim = x.plot.range, ylim = 1.5*y.plot.range, type = "l", lwd = 2, col = 2, xlab = "NES", ylab = "P(NES)", main = "Global Observed and Null Densities (Area Normalized)")
-    
-    y1.point <- y1[seq(1, length(x), 2)]
-    y2.point <- y2[seq(2, length(x), 2)]
-    x1.point <- x[seq(1, length(x), 2)]
-    x2.point <- x[seq(2, length(x), 2)]
-    
-    points(x, y1, type = "l", lwd = 2, col = colors()[555])
-    points(x, y2, type = "l", lwd = 2, col = colors()[29])
-    
-    for (i in 1:Ng) {
-      col <- ifelse(Obs.ES.norm[i] > 0, 2, 3) 
-      lines(c(Obs.ES.norm[i], Obs.ES.norm[i]), c(-0.2*max(c(y1, y2)), 0), lwd = 1, lty = 1, col = 1)
-    }
-    leg.txt <- paste("Neg. ES: \"", phen2, " \" ", sep="", collapse="")
-    text(x=x.plot.range[1], y=-0.25*max(c(y1, y2)), adj = c(0, 1), labels=leg.txt, cex = 0.9)
-    leg.txt <- paste(" Pos. ES: \"", phen1, "\" ", sep="", collapse="")
-    text(x=x.plot.range[2], y=-0.25*max(c(y1, y2)), adj = c(1, 1), labels=leg.txt, cex = 0.9)
-    
-    leg.txt <- c("Null Density", "Observed Density", "Observed NES values")
-    c.vec <- c(colors()[555], colors()[29], 1)
-    lty.vec <- c(1, 1, 1)
-    lwd.vec <- c(2, 2, 2)
-    legend(x=0, y=1.5*y.plot.range[2], bty="n", bg = "white", legend=leg.txt, lty = lty.vec, lwd = lwd.vec, col = c.vec, cex = 0.9)
-    
-    
-    B <- A[obs.index,]
-    if (N > 300) {
-      C <- rbind(B[1:100,], rep(0, Ns), rep(0, Ns), B[(floor(N/2) - 50 + 1):(floor(N/2) + 50),], rep(0, Ns), rep(0, Ns), B[(N - 100 + 1):N,])
-    } 
-    rm(B)
-    GSEA.HeatMapPlot(V = C, main = "Heat Map for Genes in Dataset")
-    
-    # p-vals plot
-    nom.p.vals <- p.vals[Obs.ES.index,1]
-    FWER.p.vals <- p.vals[Obs.ES.index,2]
-    plot.range <- 1.25*range(NES)
-    plot(NES, FDR.mean, ylim = c(0, 1), xlim = plot.range, col = 1, bg = 1, type="p", pch = 22, cex = 0.75, xlab = "NES", main = "p-values vs. NES", ylab ="p-val/q-val")
-    points(NES, nom.p.vals, type = "p", col = 2, bg = 2, pch = 22, cex = 0.75)
-    points(NES, FWER.p.vals, type = "p", col = colors()[577], bg = colors()[577], pch = 22, cex = 0.75)
-    leg.txt <- c("Nominal p-value", "FWER p-value", "FDR q-value")
-    c.vec <- c(2, colors()[577], 1)
-    pch.vec <- c(22, 22, 22)
-    legend(x=-0.5, y=0.5, bty="n", bg = "white", legend=leg.txt, pch = pch.vec, col = c.vec, pt.bg = c.vec, cex = 0.9)
-    lines(c(min(NES), max(NES)), c(nom.p.val.threshold, nom.p.val.threshold), lwd = 1, lty = 2, col = 2) 
-    lines(c(min(NES), max(NES)), c(fwer.p.val.threshold, fwer.p.val.threshold), lwd = 1, lty = 2, col = colors()[577]) 
-    lines(c(min(NES), max(NES)), c(fdr.q.val.threshold, fdr.q.val.threshold), lwd = 1, lty = 2, col = 1) 
-    
-    if (non.interactive.run == F) {  
-      if (.Platform$OS.type == "windows") {
-        savePlot(filename = glob.filename, type ="jpeg", device = dev.cur())
-      } else if (.Platform$OS.type == "unix") {
-        dev.off()
-      }
-    } else {
-      dev.off()
-    }
-    
-  }
-  
-  
-  
-  # Produce report for each gene set passing the nominal, FWER or FDR test or the top topgs in each side
-  
-  if (topgs > floor(Ng/2)) {
-    topgs <- floor(Ng/2)
-  }
-  
-  for (i in 1:Ng) {
-    if ((p.vals[i, 1] <= nom.p.val.threshold) ||
-        (p.vals[i, 2] <= fwer.p.val.threshold) ||
-        (FDR.mean.sorted[i] <= fdr.q.val.threshold) || 
-        (is.element(i, c(Obs.ES.index[1:topgs], Obs.ES.index[(Ng - topgs + 1): Ng])))) {
-      
-      #  produce report per gene set
-      
-      kk <- 1
-      gene.number <- vector(length = size.G[i], mode = "character")
-      gene.names <- vector(length = size.G[i], mode = "character")
-      gene.symbols <- vector(length = size.G[i], mode = "character")
-      gene.descs <- vector(length = size.G[i], mode = "character")
-      gene.list.loc <- vector(length = size.G[i], mode = "numeric")
-      core.enrichment <- vector(length = size.G[i], mode = "character")
-      gene.s2n <- vector(length = size.G[i], mode = "numeric")
-      gene.RES <- vector(length = size.G[i], mode = "numeric")
-      rank.list <- seq(1, N)
-      
-      if (Obs.ES[i] >= 0) {
-        set.k <- seq(1, N, 1)
-        phen.tag <- phen1
-        loc <- match(i, Obs.ES.index)
-      } else {
-        set.k <- seq(N, 1, -1)
-        phen.tag <- phen2
-        loc <- Ng - match(i, Obs.ES.index) + 1
-      }
-      
-      for (k in set.k) {
-        if (Obs.indicator[i, k] == 1) {
-          gene.number[kk] <- kk
-          gene.names[kk] <- obs.gene.labels[k]
-          gene.symbols[kk] <- substr(obs.gene.symbols[k], 1, 15)
-          gene.descs[kk] <- substr(obs.gene.descs[k], 1, 40)
-          gene.list.loc[kk] <- k
-          gene.s2n[kk] <- signif(obs.ps[k], digits=3)
-          gene.RES[kk] <- signif(Obs.RES[i, k], digits = 3)
-          if (Obs.ES[i] >= 0) {
-            core.enrichment[kk] <- ifelse(gene.list.loc[kk] <= Obs.arg.ES[i], "YES", "NO")
-          } else {
-            core.enrichment[kk] <- ifelse(gene.list.loc[kk] > Obs.arg.ES[i], "YES", "NO")
-          }
-          kk <- kk + 1
-        }
-      }
-      
-      gene.report <- data.frame(cbind(gene.number, gene.names, gene.symbols, gene.descs, gene.list.loc, gene.s2n, gene.RES, core.enrichment))
-      names(gene.report) <- c("#", "GENE", "SYMBOL", "DESC", "LIST LOC", "S2N", "RES", "CORE_ENRICHMENT")
-      
-      #       print(gene.report)
-      
-      if (output.directory != "")  {
-        
-        filename <- paste(output.directory, doc.string, ".", gs.names[i], ".report.", phen.tag, ".", loc, ".txt", sep="", collapse="")
-        write.table(gene.report, file = filename, quote=F, row.names=F, sep = "\t")
-        
-        if (non.interactive.run == F) {
-          if (.Platform$OS.type == "windows") {
-            gs.filename <- paste(output.directory, doc.string, ".", gs.names[i], ".plot.", phen.tag, ".", loc, sep="", collapse="")
-            windows(width = 14, height = 6)
-          } else if (.Platform$OS.type == "unix") {
-            gs.filename <- paste(output.directory, doc.string, ".", gs.names[i], ".plot.", phen.tag, ".", loc, ".pdf", sep="", collapse="")
-            pdf(file=gs.filename, height = 6, width = 14)
-          }
-        } else {
-          if (.Platform$OS.type == "unix") {
-            gs.filename <- paste(output.directory, doc.string, ".", gs.names[i], ".plot.", phen.tag, ".", loc, ".pdf", sep="", collapse="")
-            pdf(file=gs.filename, height = 6, width = 14)
-          } else if (.Platform$OS.type == "windows") {
-            gs.filename <- paste(output.directory, doc.string, ".", gs.names[i], ".plot.", phen.tag, ".", loc, ".pdf", sep="", collapse="")
-            pdf(file=gs.filename, height = 6, width = 14)
-          }
-        }
-        
-      }
-      
-      nf <- layout(matrix(c(1,2,3), 1, 3, byrow=T), 1, c(1, 1, 1), TRUE)
-      ind <- 1:N
-      min.RES <- min(Obs.RES[i,])
-      max.RES <- max(Obs.RES[i,])
-      if (max.RES < 0.3) max.RES <- 0.3
-      if (min.RES > -0.3) min.RES <- -0.3
-      delta <- (max.RES - min.RES)*0.50
-      min.plot <- min.RES - 2*delta
-      max.plot <- max.RES
-      max.corr <- max(obs.ps)
-      min.corr <- min(obs.ps)
-      Obs.correl.vector.norm <- (obs.ps - min.corr)/(max.corr - min.corr)*1.25*delta + min.plot
-      zero.corr.line <- (- min.corr/(max.corr - min.corr))*1.25*delta + min.plot
-      col <- ifelse(Obs.ES[i] > 0, 2, 4)
-      
-      # Running enrichment plot
-      
-      sub.string <- paste("Number of genes: ", N, " (in list), ", size.G[i], " (in gene set)", sep = "", collapse="")
-      
-      main.string <- paste("Gene Set ", i, ":", gs.names[i])
-      plot(ind, Obs.RES[i,], main = main.string, sub = sub.string, xlab = "Gene List Index", ylab = "Running Enrichment Score (RES)", xlim=c(1, N), ylim=c(min.plot, max.plot), type = "l", lwd = 2, cex = 1, col = col)
-      for (j in seq(1, N, 20)) {
-        lines(c(j, j), c(zero.corr.line, Obs.correl.vector.norm[j]), lwd = 1, cex = 1, col = colors()[12]) # shading of correlation plot
-      }
-      lines(c(1, N), c(0, 0), lwd = 1, lty = 2, cex = 1, col = 1) # zero RES line
-      lines(c(Obs.arg.ES[i], Obs.arg.ES[i]), c(min.plot, max.plot), lwd = 1, lty = 3, cex = 1, col = col) # max enrichment vertical line
-      for (j in 1:N) {
-        if (Obs.indicator[i, j] == 1) {
-          lines(c(j, j), c(min.plot + 1.25*delta, min.plot + 1.75*delta), lwd = 1, lty = 1, cex = 1, col = 1)  # enrichment tags
-        }
-      }
-      lines(ind, Obs.correl.vector.norm, type = "l", lwd = 1, cex = 1, col = 1)
-      lines(c(1, N), c(zero.corr.line, zero.corr.line), lwd = 1, lty = 1, cex = 1, col = 1) # zero correlation horizontal line
-      temp <- order(abs(obs.ps), decreasing=T)
-      arg.correl <- temp[N]
-      lines(c(arg.correl, arg.correl), c(min.plot, max.plot), lwd = 1, lty = 3, cex = 1, col = 3) # zero crossing correlation vertical line
-      
-      leg.txt <- paste("\"", phen1, "\" ", sep="", collapse="")
-      text(x=1, y=min.plot, adj = c(0, 0), labels=leg.txt, cex = 1.0)
-      
-      leg.txt <- paste("\"", phen2, "\" ", sep="", collapse="")
-      text(x=N, y=min.plot, adj = c(1, 0), labels=leg.txt, cex = 1.0)
-      
-      adjx <- ifelse(Obs.ES[i] > 0, 0, 1)
-      
-      leg.txt <- paste("Peak at ", Obs.arg.ES[i], sep="", collapse="")
-      text(x=Obs.arg.ES[i], y=min.plot + 1.8*delta, adj = c(adjx, 0), labels=leg.txt, cex = 1.0)
-      
-      leg.txt <- paste("Zero crossing at ", arg.correl, sep="", collapse="")
-      text(x=arg.correl, y=min.plot + 1.95*delta, adj = c(adjx, 0), labels=leg.txt, cex = 1.0)
-      
-      # nominal p-val histogram
-      
-      sub.string <- paste("ES =", signif(Obs.ES[i], digits = 3), " NES =", signif(Obs.ES.norm[i], digits=3), "Nom. p-val=", signif(p.vals[i, 1], digits = 3),"FWER=", signif(p.vals[i, 2], digits = 3), "FDR=", signif(FDR.mean.sorted[i], digits = 3))
-      temp <- density(phi[i,], adjust=adjust.param)
-      x.plot.range <- range(temp$x)
-      y.plot.range <- c(-0.125*max(temp$y), 1.5*max(temp$y))
-      plot(temp$x, temp$y, type = "l", sub = sub.string, xlim = x.plot.range, ylim = y.plot.range, lwd = 2, col = 2, main = "Gene Set Null Distribution", xlab = "ES", ylab="P(ES)")
-      x.loc <- which.min(abs(temp$x - Obs.ES[i]))
-      lines(c(Obs.ES[i], Obs.ES[i]), c(0, temp$y[x.loc]), lwd = 2, lty = 1, cex = 1, col = 1)
-      lines(x.plot.range, c(0, 0), lwd = 1, lty = 1, cex = 1, col = 1)
-      
-      leg.txt <- c("Gene Set Null Density", "Observed Gene Set ES value")
-      c.vec <- c(2, 1)
-      lty.vec <- c(1, 1)
-      lwd.vec <- c(2, 2)
-      legend(x=-0.2, y=y.plot.range[2], bty="n", bg = "white", legend=leg.txt, lty = lty.vec, lwd = lwd.vec, col = c.vec, cex = 1.0)
-      
-      leg.txt <- paste("Neg. ES \"", phen2, "\" ", sep="", collapse="")
-      text(x=x.plot.range[1], y=-0.1*max(temp$y), adj = c(0, 0), labels=leg.txt, cex = 1.0)
-      leg.txt <- paste(" Pos. ES: \"", phen1, "\" ", sep="", collapse="")
-      text(x=x.plot.range[2], y=-0.1*max(temp$y), adj = c(1, 0), labels=leg.txt, cex = 1.0)
-      
-      # create pinkogram for each gene set
-      
-      kk <- 1
-      pinko <- matrix(0, nrow = size.G[i], ncol = cols)
-      pinko.gene.names <- vector(length = size.G[i], mode = "character")
-      for (k in 1:rows) {
-        if (Obs.indicator[i, k] == 1) {
-          pinko[kk,] <- A[obs.index[k],]
-          pinko.gene.names[kk] <- obs.gene.symbols[k]
-          kk <- kk + 1
-        }
-      }
-      GSEA.HeatMapPlot(V = pinko, row.names = pinko.gene.names, col.names = sample.names, main =" Heat Map for Genes in Gene Set", xlab=" ", ylab=" ")
-      
-      if (non.interactive.run == F) {  
-        if (.Platform$OS.type == "windows") {
-          savePlot(filename = gs.filename, type ="jpeg", device = dev.cur())
-        } else if (.Platform$OS.type == "unix") {
-          dev.off()
-        }
-      } else {
-        dev.off()
-      }
-      
-    } # if p.vals thres
-    
-  } # loop over gene sets
-}
-##construct ranking and enrichment score data for observed and perumutated
-
-O.list<-list(1)
-phi.list.list<-list(1)
-for(m in 1:1){
-  O<-new.ranking(MF,nperm)
-  O.list[[m]]<-O
-  obs.tot.matrix<-O[[1]]
-  order.tot.matrix<-O[[2]]
-  correl.matrix<-O[[3]]
-  order.matrix<-O[[4]]
-  
-  obs.tot.matrix<-apply(obs.tot.matrix,2,FUN=function(x) sort(x,decreasing=T))   
-  correl.matrix<-apply(correl.matrix,2,FUN=function(x) sort(x,decreasing=T))
-  phi.list<-list(2)
-  for(c in 1:2){
-    gs.db<-geneset.collection[[c]]
-    gs.db<-lapply(gs.db,FUN=function(x) intersect(x,colnames(GE)))
-    
-    ############prepare phi step 1##########
-    gene.labels<-colnames(GE)
-    max.Ng <- length(gs.db)
-    temp.size.G <- vector(length = max.Ng, mode = "numeric") 
-    temp.size.G<-unlist(lapply(gs.db,length))
-    
-    max.size.G <- max(temp.size.G) 
-    ##debug
-    print(c("Original number of Gene Sets:", max.Ng))
-    print(c("Maximum gene set size:", max.size.G))
-    gs <- matrix(rep("null", max.Ng*max.size.G), nrow=max.Ng, ncol= max.size.G)
-    temp.names <- vector(length = max.Ng, mode = "character")
-    #temp.desc <- vector(length = max.Ng, mode = "character")
-    
-    gs.count <- 1
-    for (i in 1:max.Ng) {
-      gene.set.size <- length(gs.db[[i]])
-      gene.set.name <- names(gs.db)[i]
-      gene.set.tags<-gs.db[[i]]
-      existing.set <- is.element(gene.set.tags, gene.labels)
-      set.size <- length(existing.set[existing.set == T])
-      if ((set.size < gs.size.threshold.min) || (set.size > gs.size.threshold.max)) next
-      temp.size.G[gs.count] <- set.size
-      gs[gs.count,] <- c(gene.set.tags[existing.set], rep("null", max.size.G - temp.size.G[gs.count]))
-      temp.names[gs.count] <- gene.set.name
-      gs.count <- gs.count + 1
-    } 
-    Ng <- gs.count - 1
-    gs.names <- vector(length = Ng, mode = "character")
-    gs.names <- temp.names[1:Ng]
-    
-    ############prepare phi step 2##########
-    phi <- matrix(nrow = Ng, ncol = nperm)
-    order.matrix<-O[[4]]
-    for (i in 1:Ng) {
-      print(paste("Computing random permutations' enrichment for gene set:", i, gs.names[i], sep=" ")) 
-      gene.set <- gs[i,gs[i,] != "null"]
-      gene.set2 <- vector(length=length(gene.set), mode = "numeric")
-      gene.set2 <- match(gene.set, gene.labels)
-      for (r in 1:nperm) {
-        gene.list3 <- order.matrix[,r]
-        GSEA.results <- GSEA.EnrichmentScore2(gene.list=gene.list3, gene.set=gene.set2, weighted.score.type=weighted.score.type, correl.vector=correl.matrix[, r])   
-        phi[i, r] <- GSEA.results$ES
-      }
-    }
-    phi.list[[c]]<-phi
-  }
-  phi.list.list[[m]]<-phi.list
-}
-
-##loops for generating final data
-for(i in 1:1){
-  O<-O.list[[i]]
-  obs.tot.matrix<-O[[1]]
-  order.tot.matrix<-O[[2]]
-  correl.matrix<-O[[3]]
-  order.matrix<-O[[4]]
-  
-  obs.tot.matrix<-apply(obs.tot.matrix,2,FUN=function(x) sort(x,decreasing=T))   
-  correl.matrix<-apply(correl.matrix,2,FUN=function(x) sort(x,decreasing=T))
-  phi.list<-phi.list.list[[i]]
-  for(c in 1:2){
-    phi<-phi.list[[c]]
-    gs.db<-geneset.collection[[c]]
-    for(pick in 1:ncol(MF)){
-      obs.ps<-obs.tot.matrix[,pick]  
-      gene.list2<-order.tot.matrix[,pick]
-      obs.gene.list2 <- order.tot.matrix[,pick]
-      common<-intersect(row.names(GE),row.names(MF))
-      o.mf<-order(MF[common,pick],decreasing=T)##not sure about the direction
-      A<-GE[common,]
-      A<-t(A[o.mf,])
-      cols<-ncol(A)
-      rows<-nrow(A)
-      sample.names<-colnames(A)
-      if(c==1){
-        out.dir<-paste(parent.dir,colnames(MF)[pick],"/",sep="")
-        dir.create(out.dir)
-      }
-      
-      out.dir<-paste(parent.dir,colnames(MF)[pick],"/",names(geneset.collection)[c],"/",sep="")
-      dir.create(out.dir)
-      gene.labels<-colnames(GE)
-      
-      
-      GSEA.new(
-        A=A,
-        phi=phi,
-        correl.matrix=correl.matrix,
-        order.matrix=order.matrix,
-        obs.ps=obs.ps,
-        gene.list2=gene.list2,
-        obs.gene.list2=obs.gene.list2,
-        common=common,
-        gs.db=gs.db, 
-        #  gs.ann = "",
-        output.directory = out.dir, 
-        doc.string = "GSEA.analysis", 
-        non.interactive.run = F, 
-        #  reshuffling.type = "sample.labels", 
-        nperm = 1000, 
-        weighted.score.type = 1, 
-        nom.p.val.threshold = -1, 
-        fwer.p.val.threshold = -1, 
-        fdr.q.val.threshold = 0.25, 
-        topgs = 10,
-        adjust.FDR.q.val = T, 
-        gs.size.threshold.min = 25, 
-        gs.size.threshold.max = 500, 
-        #  reverse.sign = F, 
-        #  preproc.type = 0, 
-        random.seed = 123456, 
-        #  perm.type = 0, 
-        fraction = 1.0, 
-        #  replace = F,
-        #  save.intermediate.results = F,
-        #  OLD.GSEA = F,
-        use.fast.enrichment.routine = T
-      )
-      
-    }
-  }
-}
-```
 
 ### sessionInfo
 ```{r sessionInfo, warning = FALSE,message=T}
