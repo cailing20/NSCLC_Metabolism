@@ -54,6 +54,7 @@ library(cowplot)
 c2cgp<-readRDS('data/c2cgp.rds')
 c2cp<-readRDS('data/c2cp.rds')
 dat<-readRDS('data/metabolic_profiling_data.rds')
+dat<-dat[which(rownames(dat)!='H446'),]
 ge<-readRDS('data/illumina_gene_level.rds')
 common<-intersect(rownames(ge),rownames(dat))
 ge<-ge[common,]
@@ -879,7 +880,7 @@ ggplot(tmp,aes(x=uncorrected,y=corrected))+geom_point(alpha=0.3)+theme_classic()
 ```
 
 #### S1B
-```{r S1B, warning = FALSE,message=FALSE,fig.height = 4,fig.width=4}
+```{r S1B, warning = FALSE,message=FALSE,fig.height = 4,fig.width=5}
 replicate.sd<-list()
 cell.sd<-list()
 new.names<-c('CitG6','CitG24','CitQ6','CitQ24','SerG6','SerG24',
@@ -890,6 +891,7 @@ sd.mat.list<-list()
 for(i in 2:(length(new.names)+1)){
   sheet<-sheets(wb)[i]
   tmp<-read.xlsx(wb, sheet = sheet,rowNames = T,colNames = T)
+  tmp<-tmp[which(toupper(tmp$X2)!='H446'),]
   sd.mat<-as.matrix(tmp[-1,grep('Std',colnames(tmp),ignore.case = T):(grep('Rep',colnames(tmp),ignore.case = T)-1)])
   rownames(sd.mat)<-tmp[-1,1]
   sd.mat<-sd.mat[complete.cases(sd.mat),]
@@ -930,9 +932,9 @@ diversity.plot<-function(sheet,cell_lines,tracer){
   rownames(tmp.sem)<-rownames(tmp.mean)<-paste('m+',0:6,sep = '')
   tmp.m<-setNames(cbind(melt(tmp.mean),melt(tmp.sem)[,3]),c('isotopologue','cell line','mean','sem'))
   if(tracer=='glucose'){
-    title<-expression('citrate labeling by [U-'^{13}*'C] glucose labeling')
+    title<-expression('citrate labeling by [U-'^{13}*'C]glucose')
   }else{
-    title<-expression('citrate labeling by [U-'^{13}*'C] glutamine labeling')
+    title<-expression('citrate labeling by [U-'^{13}*'C]glutamine')
   }
   ggplot(tmp.m,aes(x=isotopologue,y=mean))+
     geom_bar(stat="identity",position=position_dodge())+
@@ -1012,6 +1014,9 @@ fit<-lm(MalG6m3~CitG6m4,tmp)
 tmp$res<-lm(MalG6m3~CitG6m4,tmp)$residuals
 par(mfrow=c(2,2))
 plot.new()
+ct<-cor.test(tmp$MalG6m3,tmp$PC)
+plot(tmp$MalG6m3,tmp$PC,pch=19,xlab='MalG6m3',ylab='PC gene expression',
+     main=paste('r = ',round(ct$estimate,2),'; pv = ',signif(ct$p.value,2),sep = ''))
 plot(tmp[,c('CitG6m4','MalG6m3')],type='n')
 abline(lm(MalG6m3~CitG6m4,tmp))
 for(cell in names(fit$residuals)){
@@ -1020,9 +1025,7 @@ for(cell in names(fit$residuals)){
 }
 points(tmp[,c('CitG6m4','MalG6m3')],pch=19)
 legend('topleft',col='#f68712',legend = 'residual',lty=1)
-ct<-cor.test(tmp$MalG6m3,tmp$PC)
-plot(tmp$MalG6m3,tmp$PC,pch=19,xlab='MalG6m3',ylab='PC gene expression',
-     main=paste('r = ',round(ct$estimate,2),'; pv = ',signif(ct$p.value,2),sep = ''))
+
 ct<-cor.test(tmp$res,tmp$PC)
 plot(tmp$res,tmp$PC,pch=19,xlab='residuals',ylab='PC gene expression',
      main=paste('r = ',round(ct$estimate,2),'; pv = ',signif(ct$p.value,2),sep = ''))
